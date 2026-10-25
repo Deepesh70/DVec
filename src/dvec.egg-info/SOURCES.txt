@@ -1,12 +1,18 @@
+LICENSE
+README.md
 pyproject.toml
 docs/README.md
 src/dvec/__init__.py
 src/dvec.egg-info/PKG-INFO
 src/dvec.egg-info/SOURCES.txt
 src/dvec.egg-info/dependency_links.txt
+src/dvec.egg-info/entry_points.txt
 src/dvec.egg-info/requires.txt
 src/dvec.egg-info/top_level.txt
 src/dvec/enrollment/__init__.py
+src/dvec/enrollment/cli.py
+src/dvec/enrollment/encoder.py
+src/dvec/enrollment/pipeline.py
 src/dvec/enrollment/validator.py
 src/dvec/export/__init__.py
 src/dvec/export/onnx_exporter.py
@@ -18,5 +24,7 @@ src/dvec/utils/audio.py
 src/pipeline/model.py
 src/pipeline/stft.py
 src/pipeline/test_pipeline.py
+tests/test_encoder.py
+tests/test_onnx_export.py
 tests/test_pipeline.py
 tests/test_validator.py

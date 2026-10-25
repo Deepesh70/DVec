@@ -10,7 +10,7 @@ TARGET_SAMPLE_RATE = 16000
 
 
 def load_audio_mono(path: str | Path, target_sr: int = TARGET_SAMPLE_RATE) -> Tuple[torch.Tensor, int]:
-    """Load an audio file, convert to mono, and resample to target_sr if needed.
+    """Load an audio file using soundfile, convert to mono float32, and resample if needed.
     
     Args:
         path: Path to audio file.
@@ -18,11 +18,22 @@ def load_audio_mono(path: str | Path, target_sr: int = TARGET_SAMPLE_RATE) -> Tu
     Returns:
         (waveform, sample_rate) where waveform has shape (1, num_samples).
     """
-    waveform, sr = torchaudio.load(str(path))
+    import soundfile as sf
 
-    # Convert multi-channel to mono by averaging channels
-    if waveform.shape[0] > 1:
-        waveform = torch.mean(waveform, dim=0, keepdim=True)
+    data, sr = sf.read(str(path), dtype="float32")
+    waveform = torch.from_numpy(data)
+
+    # If 1D, shape -> (1, T)
+    if waveform.dim() == 1:
+        waveform = waveform.unsqueeze(0)
+    elif waveform.shape[0] > 1 and waveform.shape[1] > 1:
+        # Multi-channel: average channels across dim=0 or dim=1
+        if waveform.shape[1] < waveform.shape[0]:  # (T, C)
+            waveform = torch.mean(waveform, dim=1, keepdim=True).t()
+        else:  # (C, T)
+            waveform = torch.mean(waveform, dim=0, keepdim=True)
+    elif waveform.shape[0] > 1 and waveform.shape[1] == 1:
+        waveform = waveform.t()
 
     # Resample if sample rate differs
     if sr != target_sr:

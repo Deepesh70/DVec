@@ -5,6 +5,7 @@ Summary: Real-time low-latency Target Speaker Extraction daemon
 Author: DVec Engineering
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: torch>=2.2.0
 Requires-Dist: torchaudio>=2.2.0
 Requires-Dist: numpy<2.0.0,>=1.24.0
@@ -21,6 +22,7 @@ Requires-Dist: onnxruntime>=1.17.0; extra == "export"
 Provides-Extra: enrollment
 Requires-Dist: speechbrain>=1.0.0; extra == "enrollment"
 Requires-Dist: webrtcvad>=2.0.10; extra == "enrollment"
+Dynamic: license-file
 
 # Target Speaker Extraction (TSE) Daemon Documentation
 

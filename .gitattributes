@@ -1,0 +1,18 @@
+# Set default behavior to automatically normalize line endings to LF on commit
+* text=auto eol=lf
+
+# Explicit text files
+*.py text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+
+# Binary files (do not touch line endings)
+*.bin binary
+*.onnx binary
+*.wav binary
+*.pt binary
+*.pth binary

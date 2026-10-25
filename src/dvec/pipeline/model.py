@@ -116,6 +116,66 @@ class CausalTSEModel(nn.Module):
             nn.Sigmoid(),
         )
 
+    def forward_sequence(
+        self,
+        x_real: torch.Tensor,
+        x_imag: torch.Tensor,
+        embedding: torch.Tensor,
+    ):
+        """Full sequence forward pass for parallel GPU training.
+        
+        Args:
+            x_real: (B, 1, F, T)
+            x_imag: (B, 1, F, T)
+            embedding: (B, embed_dim)
+        Returns:
+            mask_real: (B, 1, F, T)
+            mask_imag: (B, 1, F, T)
+            vad_probs: (B, T)
+        """
+        x = torch.cat([x_real, x_imag], dim=1)  # (B, 2, F, T)
+
+        # Encoder
+        feat = F.elu(self.enc_bn1(self.enc_conv1(x)))
+        feat = F.elu(self.enc_bn2(self.enc_conv2(feat)))  # (B, 64, bottleneck_freq, T)
+
+        # FiLM Conditioning
+        feat = self.film(feat, embedding)
+
+        # Flatten for LSTM: (B, T, 64 * bottleneck_freq)
+        b, c, f, t = feat.shape
+        lstm_in = feat.permute(0, 3, 1, 2).reshape(b, t, c * f)
+
+        # Vectorized recurrent sequence pass
+        lstm_out, _ = self.lstm(lstm_in)
+
+        # Frame-wise Personal VAD probabilities: (B, T)
+        vad_probs = self.vad_head(lstm_out).squeeze(-1)
+
+        # Projection and reshape to feature map
+        proj = self.lstm_proj(lstm_out)
+        proj = proj.reshape(b, t, c, f).permute(0, 2, 3, 1)  # (B, 64, bottleneck_freq, T)
+
+        # Decoder
+        d1 = F.elu(self.dec_bn1(self.dec_conv1(proj)))
+        if d1.shape[2] != self.num_freq_bins:
+            d1 = F.interpolate(d1, size=(self.num_freq_bins, t), mode="nearest")
+
+        mask = self.dec_conv2(d1)
+
+        # Bound masks with tanh: range [-1.2, 1.2]
+        mask_real = 1.2 * torch.tanh(mask[:, 0:1, :, :])
+        mask_imag = 1.2 * torch.tanh(mask[:, 1:2, :, :])
+
+        # Enforce spectral floor only during inference (training unconstrained down to 0.0)
+        if not self.training and self.spectral_floor > 0.0:
+            mask_mag = torch.sqrt(mask_real ** 2 + mask_imag ** 2 + 1e-8)
+            scale = torch.clamp(mask_mag, min=self.spectral_floor) / mask_mag
+            mask_real = mask_real * scale
+            mask_imag = mask_imag * scale
+
+        return mask_real, mask_imag, vad_probs
+
     def forward_streaming_frame(
         self,
         x_real: torch.Tensor,
@@ -169,10 +229,11 @@ class CausalTSEModel(nn.Module):
         mask_real = 1.2 * torch.tanh(mask[:, 0:1, :, :])
         mask_imag = 1.2 * torch.tanh(mask[:, 1:2, :, :])
 
-        # Enforce spectral floor
-        mask_mag = torch.sqrt(mask_real ** 2 + mask_imag ** 2 + 1e-8)
-        scale = torch.clamp(mask_mag, min=self.spectral_floor) / mask_mag
-        mask_real = mask_real * scale
-        mask_imag = mask_imag * scale
+        # Enforce spectral floor only during inference (training unconstrained down to 0.0)
+        if not self.training and self.spectral_floor > 0.0:
+            mask_mag = torch.sqrt(mask_real ** 2 + mask_imag ** 2 + 1e-8)
+            scale = torch.clamp(mask_mag, min=self.spectral_floor) / mask_mag
+            mask_real = mask_real * scale
+            mask_imag = mask_imag * scale
 
         return mask_real, mask_imag, vad_prob, h_next, c_next

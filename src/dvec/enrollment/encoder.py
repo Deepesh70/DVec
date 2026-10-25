@@ -36,6 +36,7 @@ class DeterministicSpeakerEncoder(nn.Module):
         Returns:
             Normalized embedding (batch, embed_dim)
         """
+        waveform = waveform.float()
         if waveform.dim() == 1:
             waveform = waveform.unsqueeze(0)
 

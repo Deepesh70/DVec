@@ -21,3 +21,4 @@ webrtcvad>=2.0.10
 # Testing & Linting
 pytest>=7.4.0
 pytest-cov>=4.1.0
+

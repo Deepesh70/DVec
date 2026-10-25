@@ -1,0 +1,23 @@
+# Core Deep Learning Framework
+torch>=2.2.0
+torchaudio>=2.2.0
+
+# Pre-trained Speaker Recognition & Acoustic Modeling
+speechbrain>=1.0.0
+huggingface-hub>=0.20.0
+
+# Model Export & Streaming Runtime
+onnx>=1.15.0
+onnxruntime>=1.17.0
+
+# Digital Signal Processing & Scientific Computing
+numpy>=1.24.0,<2.0.0
+scipy>=1.11.0
+soundfile>=0.12.0
+
+# Voice Activity Detection & Purity Verification
+webrtcvad>=2.0.10
+
+# Testing & Linting
+pytest>=7.4.0
+pytest-cov>=4.1.0

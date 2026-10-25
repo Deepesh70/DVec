@@ -78,13 +78,17 @@ def run_offline_onnx_extraction(
         }
         mask_r, mask_i, vad_prob, h, c = session.run(None, ort_inputs)
 
-        # 4. Complex Masking
-        mr = torch.from_numpy(mask_r)
-        mi = torch.from_numpy(mask_i)
+        # 4. Soft Personal VAD Squelch (suppresses residual background bleed during pauses)
+        vad_val = float(np.squeeze(vad_prob))
+        vad_gain = float(np.clip((vad_val - 0.2) / 0.3, 0.02, 1.0))
+
+        # 5. Complex Masking
+        mr = torch.from_numpy(mask_r) * vad_gain
+        mi = torch.from_numpy(mask_i) * vad_gain
         out_r = spec_r * mr - spec_i * mi
         out_i = spec_r * mi + spec_i * mr
 
-        # 5. Causal iSTFT & Overlap-Add
+        # 6. Causal iSTFT & Overlap-Add
         time_frame = processor.istft.synthesize_frame(out_r, out_i)
         processor.ola_buffer += time_frame
         out_hop = processor.ola_buffer[:, :hop_size].clone()

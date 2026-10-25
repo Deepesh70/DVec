@@ -1,0 +1,2 @@
+[console_scripts]
+dvec-enroll = dvec.enrollment.cli:main

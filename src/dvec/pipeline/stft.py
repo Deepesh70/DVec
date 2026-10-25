@@ -42,6 +42,23 @@ class CausalSTFT(nn.Module):
         imag = spec.imag.unsqueeze(1).unsqueeze(-1)
         return real, imag
 
+    def analyze_sequence(self, waveform: torch.Tensor):
+        """Vectorized causal analysis matching StreamingAudioProcessor bit-for-bit.
+        
+        Args:
+            waveform: (batch, num_samples)
+        Returns:
+            real: (batch, 1, freq_bins, num_frames)
+            imag: (batch, 1, freq_bins, num_frames)
+        """
+        import torch.nn.functional as F
+        padded = F.pad(waveform, (self.hop_size, 0))
+        frames = padded.unfold(dimension=-1, size=self.frame_size, step=self.hop_size)
+        spec = torch.fft.rfft(frames * self.window, n=self.fft_size, dim=-1)
+        real = spec.real.permute(0, 2, 1).unsqueeze(1)
+        imag = spec.imag.permute(0, 2, 1).unsqueeze(1)
+        return real, imag
+
 
 class CausalISTFT(nn.Module):
     """Causal iSTFT synthesis module with overlap-add."""
@@ -67,6 +84,24 @@ class CausalISTFT(nn.Module):
         spec = torch.complex(real.squeeze(-1).squeeze(1), imag.squeeze(-1).squeeze(1))
         time_frame = torch.fft.irfft(spec, n=self.fft_size, dim=-1)[..., :self.frame_size]
         return time_frame * self.window
+
+    def synthesize_sequence(self, real: torch.Tensor, imag: torch.Tensor, length: int):
+        """Vectorized causal synthesis matching StreamingAudioProcessor bit-for-bit.
+        
+        Args:
+            real: (batch, 1, freq_bins, num_frames)
+            imag: (batch, 1, freq_bins, num_frames)
+            length: Target number of output samples
+        Returns:
+            reconstructed: (batch, length)
+        """
+        spec = torch.complex(real.squeeze(1), imag.squeeze(1)).permute(0, 2, 1) # (B, num_frames, freq_bins)
+        tf_vec = torch.fft.irfft(spec, n=self.fft_size, dim=-1)[..., :self.frame_size] * self.window
+        b, num_frames, _ = tf_vec.shape
+        ola = torch.zeros(b, length + self.frame_size, device=real.device)
+        for t in range(num_frames):
+            ola[:, t * self.hop_size : t * self.hop_size + self.frame_size] += tf_vec[:, t, :]
+        return ola[:, :length]
 
 
 class StreamingAudioProcessor:

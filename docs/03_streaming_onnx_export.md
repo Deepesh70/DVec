@@ -129,3 +129,17 @@ Target latency per 10ms frame: **$\le 2.5\text{ ms}$** (allows a $75\%$ safety h
 | **DirectML** | FP16 | $1.0\text{--}1.5\text{ ms}$ | Native on Windows; runs on AMD, Intel, and NVIDIA consumer GPUs. |
 | **TensorRT / CUDA** | FP16 | $0.4\text{--}0.8\text{ ms}$ | Optimal for NVIDIA RTX systems; zero CPU utilization. |
 | **OpenVINO** | INT8 / FP16 | $1.2\text{--}1.8\text{ ms}$ | Optimized for Intel Core / Core Ultra NPU & Iris Xe engines. |
+
+---
+
+## 6. Personal VAD Squelch Post-Processing
+
+While the complex ratio mask ($M_r, M_i$) attenuates concurrent interferers, residual acoustic energy can remain audible during target speech pauses and inter-syllable gaps. To ensure absolute background silence between spoken phrases, the runtime applies a continuous **Soft pVAD Squelch**:
+
+$$\text{gain}_{\text{vad}} = \text{clamp}\left( \frac{P(\text{pVAD}) - 0.20}{0.30}, 0.02, 1.0 \right)$$
+
+$$M_r^{\text{final}} = M_r \cdot \text{gain}_{\text{vad}}, \quad M_i^{\text{final}} = M_i \cdot \text{gain}_{\text{vad}}$$
+
+- **Target Speech Active ($P \ge 0.50$):** $\text{gain}_{\text{vad}} = 1.0$ (transparent complex filtering preserves target consonants and vowels).
+- **Target Pauses ($P \le 0.20$):** $\text{gain}_{\text{vad}} = 0.02$ ($-34\text{ dB}$ floor completely eliminates background co-talker bleed).
+- **Ramp Transition ($0.20 < P < 0.50$):** Smooth linear ramp prevents clicking artifacts or abrupt unnatural gating on word boundaries.

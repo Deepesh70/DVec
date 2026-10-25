@@ -31,6 +31,8 @@ class DynamicTSEDataset(Dataset):
         sir_range: Tuple[float, float] = (-5.0, 15.0),
         embedding_jitter_std: float = 0.05,
         encoder_func=None,
+        speaker_whitelist: Optional[List[str]] = None,
+        speaker_embeddings: Optional[Dict[str, torch.Tensor]] = None,
     ):
         super().__init__()
         self.sample_rate = sample_rate
@@ -39,10 +41,14 @@ class DynamicTSEDataset(Dataset):
         self.sir_range = sir_range
         self.embedding_jitter_std = embedding_jitter_std
         self.encoder_func = encoder_func
+        self.speaker_embeddings = speaker_embeddings
 
         self.speaker_files: Dict[str, List[Path]] = {}
         if audio_dir is not None and Path(audio_dir).exists():
             self._index_audio_directory(Path(audio_dir))
+
+        if speaker_whitelist is not None:
+            self.speaker_files = {k: v for k, v in self.speaker_files.items() if k in speaker_whitelist}
 
         self.has_real_audio = len(self.speaker_files) >= 2
 
@@ -50,7 +56,14 @@ class DynamicTSEDataset(Dataset):
         """Index audio files grouped by speaker subdirectories."""
         for p in root.rglob("*"):
             if p.suffix.lower() in [".wav", ".flac", ".ogg"]:
-                speaker_id = p.parent.name
+                # In LibriSpeech, filename is <speaker_id>-<chapter_id>-<utterance_id>.flac
+                if "-" in p.name:
+                    speaker_id = p.name.split("-")[0]
+                elif p.parent.name.isdigit() and p.parent.parent.name != "dev-clean":
+                    speaker_id = p.parent.parent.name
+                else:
+                    speaker_id = p.parent.name
+
                 if speaker_id not in self.speaker_files:
                     self.speaker_files[speaker_id] = []
                 self.speaker_files[speaker_id].append(p)
@@ -153,7 +166,9 @@ class DynamicTSEDataset(Dataset):
         mixture = mixture + noise
 
         # Extract or construct speaker embedding
-        if self.encoder_func is not None:
+        if self.has_real_audio and self.speaker_embeddings is not None and speakers[0] in self.speaker_embeddings:
+            spk_embed = self.speaker_embeddings[speakers[0]].clone()
+        elif self.encoder_func is not None:
             spk_embed = self.encoder_func(s_target).squeeze(0)  # (256,)
         else:
             # Deterministic pseudo-embedding based on spectral centroid & variance

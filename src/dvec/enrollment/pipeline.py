@@ -39,7 +39,7 @@ def enroll_user(
     waveform, sr = load_audio_mono(audio_path, target_sr=16000)
 
     if encoder is None:
-        encoder = SpeakerEncoder(use_fallback=True)
+        encoder = SpeakerEncoder(use_fallback=False)
 
     if validator is None:
         validator = EnrollmentValidator()

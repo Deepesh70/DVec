@@ -90,7 +90,12 @@ class CausalTSEModel(nn.Module):
 
         # Bottleneck frequency dimension after stride 2: ceil(257 / 2) = 129
         self.bottleneck_freq = (num_freq_bins + 1) // 2
-        lstm_input_dim = 64 * self.bottleneck_freq
+        
+        # Bottleneck compression: 64 ch -> 16 ch, 129 freq -> 33 freq
+        self.bot_down = nn.Conv2d(64, 16, kernel_size=(3, 1), stride=(4, 1), padding=(1, 0))
+        self.bot_bn_down = nn.BatchNorm2d(16)
+        self.compressed_freq = (self.bottleneck_freq + 2 * 1 - 3) // 4 + 1  # 33
+        lstm_input_dim = 16 * self.compressed_freq  # 528
 
         # Recurrent core
         self.lstm = nn.LSTM(
@@ -102,6 +107,10 @@ class CausalTSEModel(nn.Module):
 
         # Projection back to feature space
         self.lstm_proj = nn.Linear(hidden_dim, lstm_input_dim)
+
+        # Bottleneck expansion: 16 ch -> 64 ch, 33 freq -> 129 freq
+        self.bot_up = nn.ConvTranspose2d(16, 64, kernel_size=(3, 1), stride=(4, 1), padding=(1, 0), output_padding=(0, 0))
+        self.bot_bn_up = nn.BatchNorm2d(64)
 
         # Decoder for cIRM: 64 -> 32 -> 2 (Mask Real, Mask Imag)
         self.dec_conv1 = nn.ConvTranspose2d(64, 32, kernel_size=(3, 1), stride=(2, 1), padding=(1, 0), output_padding=(0, 0))
@@ -142,9 +151,12 @@ class CausalTSEModel(nn.Module):
         # FiLM Conditioning
         feat = self.film(feat, embedding)
 
-        # Flatten for LSTM: (B, T, 64 * bottleneck_freq)
-        b, c, f, t = feat.shape
-        lstm_in = feat.permute(0, 3, 1, 2).reshape(b, t, c * f)
+        # Compress bottleneck: (B, 64, bottleneck_freq, T) -> (B, 16, compressed_freq, T)
+        bot = F.elu(self.bot_bn_down(self.bot_down(feat)))
+
+        # Flatten for LSTM: (B, T, 16 * compressed_freq)
+        b, c, f, t = bot.shape
+        lstm_in = bot.permute(0, 3, 1, 2).reshape(b, t, c * f)
 
         # Vectorized recurrent sequence pass
         lstm_out, _ = self.lstm(lstm_in)
@@ -152,9 +164,10 @@ class CausalTSEModel(nn.Module):
         # Frame-wise Personal VAD probabilities: (B, T)
         vad_probs = self.vad_head(lstm_out).squeeze(-1)
 
-        # Projection and reshape to feature map
+        # Projection and expand back to (B, 64, bottleneck_freq, T)
         proj = self.lstm_proj(lstm_out)
-        proj = proj.reshape(b, t, c, f).permute(0, 2, 3, 1)  # (B, 64, bottleneck_freq, T)
+        proj = proj.reshape(b, t, c, f).permute(0, 2, 3, 1)
+        proj = F.elu(self.bot_bn_up(self.bot_up(proj)))
 
         # Decoder
         d1 = F.elu(self.dec_bn1(self.dec_conv1(proj)))
@@ -204,9 +217,12 @@ class CausalTSEModel(nn.Module):
         # FiLM Conditioning
         feat = self.film(feat, embedding)
 
-        # Flatten for LSTM: (B, 1, 64 * bottleneck_freq)
-        b, c, f, t = feat.shape
-        lstm_in = feat.permute(0, 3, 1, 2).reshape(b, t, c * f)
+        # Compress bottleneck: (B, 64, bottleneck_freq, 1) -> (B, 16, compressed_freq, 1)
+        bot = F.elu(self.bot_bn_down(self.bot_down(feat)))
+
+        # Flatten for LSTM: (B, 1, 16 * compressed_freq)
+        b, c, f, t = bot.shape
+        lstm_in = bot.permute(0, 3, 1, 2).reshape(b, t, c * f)
 
         # Recurrent Step
         lstm_out, (h_next, c_next) = self.lstm(lstm_in, (h_prev, c_prev))
@@ -214,9 +230,10 @@ class CausalTSEModel(nn.Module):
         # Personal VAD probability
         vad_prob = self.vad_head(lstm_out[:, -1, :])
 
-        # Projection and reshape to feature map
+        # Projection and expand back to (B, 64, bottleneck_freq, 1)
         proj = self.lstm_proj(lstm_out)
         proj = proj.reshape(b, t, c, f).permute(0, 2, 3, 1)
+        proj = F.elu(self.bot_bn_up(self.bot_up(proj)))
 
         # Decoder
         d1 = F.elu(self.dec_bn1(self.dec_conv1(proj)))

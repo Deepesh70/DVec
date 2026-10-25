@@ -57,11 +57,11 @@ A 10-second clip must contain active continuous speech, rather than 8 seconds of
 
 ### Gate 3: Acoustic Purity & Co-Talker Detection
 To prevent the user from enrolling while an interfering speaker is talking:
-1. Divide the 10-second recording into five 2-second sub-segments: $s_1, s_2, s_3, s_4, s_5$.
-2. Extract an embedding for each sub-segment using the frozen encoder: $e_1, e_2, \dots, e_5$.
-3. Compute the pairwise cosine similarity matrix:
-   $$S_{i, j} = \frac{e_i \cdot e_j}{\|e_i\|_2 \|e_j\|_2}$$
-4. **Reject if $\min(S_{i, j}) < 0.75$:** A low minimum pairwise similarity indicates that distinct speakers or substantial non-stationary background noises dominated one or more sub-segments.
+1. Divide the 10-second recording into active 2-second sub-segments ($s_k$ with $\text{RMS} > -35\text{ dBFS}$).
+2. Extract an embedding for each sub-segment ($e_k$) and the full 10-second reference utterance ($e_{\text{full}}$) using frozen ECAPA-TDNN.
+3. Compute the cosine similarity of each sub-segment against the global reference centroid:
+   $$S_k = \frac{e_k \cdot e_{\text{full}}}{\|e_k\|_2 \|e_{\text{full}}\|_2}$$
+4. **Reject if $\min(S_k) < 0.45$:** In short 2-second unconstrained phonetic windows, same-speaker similarity against the global centroid spans $0.50$–$0.85$. A subsegment dropping below $0.45$ flags acoustic contamination or co-talker presence.
 
 ---
 

@@ -31,7 +31,7 @@ class EnrollmentValidator:
         min_rms_dbfs: float = -35.0,
         max_peak_dbfs: float = -1.0,
         min_voicing_ratio: float = 0.65,
-        min_co_talker_similarity: float = 0.75,
+        min_co_talker_similarity: float = 0.45,
     ):
         self.min_rms_dbfs = min_rms_dbfs
         self.max_peak_dbfs = max_peak_dbfs
@@ -93,31 +93,31 @@ class EnrollmentValidator:
         # Gate 3: Acoustic Purity & Co-Talker Detection
         min_sim = 1.0
         if encoder_func is not None and len(reasons) == 0:
+            full_emb = encoder_func(waveform)
+            full_emb = full_emb / torch.norm(full_emb, p=2, dim=-1, keepdim=True)
+
             # Divide into 2-second subsegments (32,000 samples each)
             seg_len = 32000
             total_samples = waveform.shape[-1]
             segments = []
             for start in range(0, total_samples - seg_len + 1, seg_len):
-                segments.append(waveform[:, start : start + seg_len])
+                seg = waveform[:, start : start + seg_len]
+                # Only analyze subsegments with active voiced energy
+                if compute_rms_dbfs(seg) > -35.0:
+                    segments.append(seg)
 
-            if len(segments) >= 3:
-                embeddings = []
+            if len(segments) >= 2:
                 with torch.no_grad():
                     for seg in segments:
                         emb = encoder_func(seg)
                         emb = emb / torch.norm(emb, p=2, dim=-1, keepdim=True)
-                        embeddings.append(emb)
-
-                # Pairwise cosine similarities
-                for i in range(len(embeddings)):
-                    for j in range(i + 1, len(embeddings)):
-                        cos_sim = float(torch.sum(embeddings[i] * embeddings[j]).item())
-                        if cos_sim < min_sim:
-                            min_sim = cos_sim
+                        sim = float(torch.sum(full_emb * emb).item())
+                        if sim < min_sim:
+                            min_sim = sim
 
                 if min_sim < self.min_co_talker_similarity:
                     reasons.append(
-                        f"Inconsistent acoustic profile / secondary voice detected (Min similarity: {min_sim:.2f} < {self.min_co_talker_similarity:.2f})."
+                        f"Inconsistent acoustic profile / secondary voice detected (Subsegment similarity: {min_sim:.2f} < {self.min_co_talker_similarity:.2f})."
                     )
 
         passed = len(reasons) == 0

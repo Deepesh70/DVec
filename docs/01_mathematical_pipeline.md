@@ -48,6 +48,20 @@ $$\text{FiLM}(H_c) = \gamma_c \odot H_c + \beta_c$$
 
 ---
 
+## 3.1 Recurrent Bottleneck Compression (Cache-Resident Topology)
+
+In streaming real-time audio, model weights must reside in the CPU's fast L2/L3 cache (16–32 MB shared) to eliminate memory bus stalls at 100 FPS (10ms hops).
+
+Directly flattening encoder features ($C=64$, $F=129$) into the LSTM would produce an input dimension of $64 \times 129 = 8{,}256$, ballooning the first LSTM layer to $4.23\text{M}$ parameters ($21.2\text{ MB}$ total ONNX size).
+
+To resolve this, we introduce a causal 2D bottleneck compression layer prior to recurrence:
+- **Down-projection**: Conv2d ($C_{in}=64 \to C_{out}=16$, kernel $3 \times 1$, stride $4 \times 1$, padding $1 \times 0$) reduces frequency from $129 \to 33$ bins.
+- **Compressed LSTM input**: $16 \times 33 = 528$ dimensions.
+- **Parameter footprint**: Slashes recurrent weights by $93.6\%$, dropping overall ONNX model size from $21.2\text{ MB}$ to **$2.33\text{ MB}$** (569K parameters).
+- **Up-projection**: ConvTranspose2d ($C_{in}=16 \to C_{out}=64$, kernel $3 \times 1$, stride $4 \times 1$, padding $1 \times 0$) reconstructs the full $129$-bin feature map for the complex decoder.
+
+---
+
 ## 4. Complex Ideal Ratio Masking (cIRM)
 
 Magnitude-only masking discards phase information, leaving noisy phase intact and causing audible roughness. The network directly estimates a complex mask:

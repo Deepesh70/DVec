@@ -3,6 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.exe
+*.dll
+*.lib
+*.o
+*.obj
+build/
+test_profile.bin
 
 # Environments & Virtual Envs
 .venv/

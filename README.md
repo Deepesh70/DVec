@@ -64,6 +64,13 @@ DVec/
 │       ├── enrollment/                    # RMS, voicing ratio & purity validation
 │       ├── export/                        # Streaming ONNX model serialization
 │       └── utils/                         # Metering & audio format utilities
+├── cpp/                                   # Real-time C++17 inference daemon
+│   ├── spsc_ring_buffer.hpp               # Lock-free SPSC circular buffer
+│   ├── audio_processor.hpp                # Causal STFT/iSTFT framing & FFT
+│   ├── onnx_model.hpp                     # ONNX Runtime C++ stateful engine
+│   ├── daemon.hpp                         # Coordinator & worker thread loop
+│   ├── audio_device.hpp                   # Duplex WASAPI hardware audio callbacks
+│   └── main.cpp                           # Daemon entry point & test harness
 └── tests/                                 # Unit & parity verification suite
 ```
 
@@ -83,7 +90,18 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-### 2. Run Test Suite
+### 2. Build C++ Real-Time Daemon
+
+```bash
+# Compile standalone high-performance C++ daemon
+g++ -std=c++17 -O3 cpp/main.cpp \
+    -I<path_to_onnxruntime>/include \
+    -L<path_to_onnxruntime>/lib \
+    -lonnxruntime \
+    -o dvec_daemon.exe
+```
+
+### 3. Run Test Suite
 
 ```bash
 pytest tests/ -v

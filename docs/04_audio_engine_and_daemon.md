@@ -122,3 +122,32 @@ Microphones often default to $44.1\text{ kHz}$ or $48\text{ kHz}$, whereas the m
 If the inference thread stalls due to an external system load spike:
 1. **Input Ring Buffer Overflow:** If the producer finds the input buffer full, oldest samples are discarded with an atomic head skip, and a counter is incremented.
 2. **Output Ring Buffer Underflow:** If the audio callback pops samples and finds the buffer empty, it writes silent frames (`0.0f`) to prevent audible clipping clicks.
+
+---
+
+## 6. C++17 Implementation & Build Specifications
+
+The production daemon source files are located in `cpp/`:
+- `spsc_ring_buffer.hpp`: Lock-free, cache-line-aligned SPSC circular queue with atomic acquire/release semantics.
+- `audio_processor.hpp`: Square-root Hann windowing, in-place Cooley-Tukey FFT, and overlap-add synthesis.
+- `onnx_model.hpp`: ONNX Runtime C++ wrapper managing recurrent LSTM states and bounded complex masking.
+- `daemon.hpp`: Coordinator managing the worker inference thread and audio callback queues.
+- `audio_device.hpp`: Duplex hardware audio capture and playback binding via `miniaudio.h`.
+- `main.cpp`: Standalone daemon runner with device enumeration and live duplex filtering.
+
+### Compilation Command
+
+```powershell
+$COMPILER = "C:\Users\aadit\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin\g++.exe"
+$ORT_DIR  = "C:\Users\aadit\Downloads\onnxruntime-win-x64-1.30.1\onnxruntime-win-x64-1.30.1"
+
+& $COMPILER -std=c++17 -O3 cpp/main.cpp `
+    -Icpp `
+    -I"$ORT_DIR\include" `
+    -L"$ORT_DIR\lib" `
+    -lonnxruntime `
+    -lole32 -lwinmm `
+    -o dvec_daemon.exe
+```
+
+

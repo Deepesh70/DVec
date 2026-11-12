@@ -71,6 +71,7 @@ DVec/
 │   ├── daemon.hpp                         # Coordinator & worker thread loop
 │   ├── audio_device.hpp                   # Duplex WASAPI hardware audio callbacks
 │   └── main.cpp                           # Daemon entry point & test harness
+├── CMakeLists.txt                         # Modern C++ CMake build configuration
 └── tests/                                 # Unit & parity verification suite
 ```
 
@@ -90,15 +91,15 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-### 2. Build C++ Real-Time Daemon
+### 2. Build C++ Real-Time Daemon (CMake)
 
 ```bash
-# Compile standalone high-performance C++ daemon
-g++ -std=c++17 -O3 cpp/main.cpp \
-    -I<path_to_onnxruntime>/include \
-    -L<path_to_onnxruntime>/lib \
-    -lonnxruntime \
-    -o dvec_daemon.exe
+# Configure and build Release binary
+cmake -B build -G "MinGW Makefiles"
+cmake --build build --config Release
+
+# Run the live daemon (onnxruntime.dll is copied automatically)
+./build/dvec_daemon.exe
 ```
 
 ### 3. Run Test Suite

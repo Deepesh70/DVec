@@ -135,7 +135,20 @@ The production daemon source files are located in `cpp/`:
 - `audio_device.hpp`: Duplex hardware audio capture and playback binding via `miniaudio.h`.
 - `main.cpp`: Standalone daemon runner with device enumeration and live duplex filtering.
 
-### Compilation Command
+### Build Instructions (CMake)
+
+```powershell
+# 1. Configure the build directory (MinGW or MSVC)
+cmake -B build -G "MinGW Makefiles"
+
+# 2. Compile Release binary
+cmake --build build --config Release
+
+# 3. Launch the daemon
+.\build\dvec_daemon.exe
+```
+
+### Direct Compilation Command (PowerShell)
 
 ```powershell
 $COMPILER = "C:\Users\aadit\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin\g++.exe"
@@ -149,5 +162,6 @@ $ORT_DIR  = "C:\Users\aadit\Downloads\onnxruntime-win-x64-1.30.1\onnxruntime-win
     -lole32 -lwinmm `
     -o dvec_daemon.exe
 ```
+
 
 
